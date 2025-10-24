@@ -22,7 +22,7 @@ export function AppContent() {
             <div className="flex items-center space-x-3">
               {/* <div className="w-8 h-8 bg-blue-500 rounded-lg"></div> */}
               <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                Dextron
+                Dextr⊘n
               </h1>
             </div>
             <ConnectButton 
@@ -39,11 +39,13 @@ export function AppContent() {
         {!isConnected ? (
           <div className="text-center max-w-md mx-auto mt-20">
             <div className="glass-effect rounded-2xl p-8">
-              <h2 className="text-2xl font-bold mb-4">Welcome to Dextron</h2>
+              <h2 className="text-2xl font-bold mb-4">Welcome to Dextr⊘n</h2>
               <p className="text-gray-400 mb-6">
-                Connect your wallet to start trading and providing liquidity
+                Connect your wallet to start trading  , swapping and providing liquidity
               </p>
-              <ConnectButton />
+              <div className="flex justify-center">
+                <ConnectButton />
+              </div>
             </div>
           </div>
         ) : !isCorrectNetwork ? (
@@ -53,7 +55,9 @@ export function AppContent() {
               <p className="text-gray-400 mb-4">
                 Please switch to Sepolia testnet to use SwapX
               </p>
-              <ConnectButton />
+              <div className="flex justify-center">
+                <ConnectButton />
+              </div>
             </div>
           </div>
         ) : (

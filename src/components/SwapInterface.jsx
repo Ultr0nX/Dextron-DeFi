@@ -4,41 +4,6 @@ import { useAccount } from 'wagmi';
 import { Button } from './UI/Button';
 import { ArrowDownUp, Zap } from 'lucide-react';
 
-// Utility functions for safe number handling
-const safeEthersFormat = (value) => {
-  if (!value) return '0';
-  
-  try {
-    // Handle very small numbers
-    if (typeof value === 'string' && value.includes('e-')) {
-      const num = parseFloat(value);
-      if (num < 0.000001) {
-        return num.toFixed(18); // Maximum precision
-      }
-    }
-    return ethers.formatEther(value);
-  } catch (error) {
-    console.error('Format error:', error);
-    return '0';
-  }
-};
-
-const safeEthersParse = (value) => {
-  if (!value || parseFloat(value) === 0) return 0n;
-  
-  try {
-    // Convert scientific notation
-    if (typeof value === 'string' && value.includes('e-')) {
-      const num = parseFloat(value);
-      return ethers.parseEther(num.toFixed(18));
-    }
-    return ethers.parseEther(value);
-  } catch (error) {
-    console.error('Parse error:', error);
-    return 0n;
-  }
-};
-
 export function SwapInterface({ swapXContract, tokenContract, account }) {
   const { chain } = useAccount();
   const [fromToken, setFromToken] = useState('ETH');
@@ -46,7 +11,6 @@ export function SwapInterface({ swapXContract, tokenContract, account }) {
   const [fromAmount, setFromAmount] = useState('');
   const [toAmount, setToAmount] = useState('');
   const [loading, setLoading] = useState(false);
-  const [slippage, setSlippage] = useState(1); // 1% slippage
   const [ethBalance, setEthBalance] = useState('0');
   const [tokenBalance, setTokenBalance] = useState('0');
 
@@ -80,7 +44,7 @@ export function SwapInterface({ swapXContract, tokenContract, account }) {
     }
 
     try {
-      const inputAmountWei = safeEthersParse(inputAmount);
+      const inputAmountWei = ethers.parseEther(inputAmount);
       
       if (inputToken === 'ETH') {
         const provider = new ethers.BrowserProvider(window.ethereum);
@@ -92,7 +56,7 @@ export function SwapInterface({ swapXContract, tokenContract, account }) {
           ethReserve,
           tokenReserve
         );
-        setToAmount(safeEthersFormat(output));
+        setToAmount(ethers.formatEther(output));
       } else {
         const provider = new ethers.BrowserProvider(window.ethereum);
         const ethReserve = await provider.getBalance(swapXContract.target);
@@ -103,7 +67,7 @@ export function SwapInterface({ swapXContract, tokenContract, account }) {
           tokenReserve,
           ethReserve
         );
-        setToAmount(safeEthersFormat(output));
+        setToAmount(ethers.formatEther(output));
       }
     } catch (error) {
       console.error('Error estimating output:', error);
@@ -122,16 +86,14 @@ export function SwapInterface({ swapXContract, tokenContract, account }) {
     try {
       if (fromToken === 'ETH') {
         // ETH to Token swap
-        const minTokens = safeEthersParse(
-          (parseFloat(toAmount) * (1 - slippage / 100)).toFixed(18)
+        const minTokens = ethers.parseEther(
+          (parseFloat(toAmount) * 0.99).toString() // 1% slippage
         );
         
-        console.log('Swapping ETH for tokens...');
         const tx = await swapXContract.ethToTokenSwap(minTokens, {
-          value: safeEthersParse(fromAmount)
+          value: ethers.parseEther(fromAmount)
         });
         
-        console.log('Transaction sent:', tx.hash);
         const receipt = await tx.wait();
         
         if (receipt.status === 1) {
@@ -144,12 +106,11 @@ export function SwapInterface({ swapXContract, tokenContract, account }) {
         }
       } else {
         // Token to ETH swap
-        const tokensToSwap = safeEthersParse(fromAmount);
-        const minEth = safeEthersParse(
-          (parseFloat(toAmount) * (1 - slippage / 100)).toFixed(18)
+        const tokensToSwap = ethers.parseEther(fromAmount);
+        const minEth = ethers.parseEther(
+          (parseFloat(toAmount) * 0.99).toString() // 1% slippage
         );
 
-        console.log('Approving tokens...');
         // First approve tokens
         const approveTx = await tokenContract.approve(
           swapXContract.target,
@@ -157,7 +118,6 @@ export function SwapInterface({ swapXContract, tokenContract, account }) {
         );
         await approveTx.wait();
         
-        console.log('Tokens approved, executing swap...');
         // Then swap
         const swapTx = await swapXContract.tokenToEthSwap(
           tokensToSwap,
@@ -199,28 +159,10 @@ export function SwapInterface({ swapXContract, tokenContract, account }) {
     }
   };
 
-  // Input validation
-  const validateAmount = (amount) => {
-    if (!amount) return true;
-    
-    const num = parseFloat(amount);
-    if (isNaN(num)) return false;
-    
-    // Prevent extremely small numbers that cause scientific notation
-    if (num < 0.000000001) {
-      alert('Amount too small. Please use larger amounts.');
-      return false;
-    }
-    
-    return true;
-  };
-
   const handleFromAmountChange = (e) => {
     const value = e.target.value;
-    if (validateAmount(value)) {
-      setFromAmount(value);
-      estimateOutput(value, fromToken);
-    }
+    setFromAmount(value);
+    estimateOutput(value, fromToken);
   };
 
   // Update output when input changes
@@ -253,19 +195,6 @@ export function SwapInterface({ swapXContract, tokenContract, account }) {
     <div className="glass-effect rounded-2xl p-6">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold">Swap</h2>
-        <div className="flex items-center space-x-2 text-sm">
-          <span className="text-gray-400">Slippage:</span>
-          <select 
-            value={slippage}
-            onChange={(e) => setSlippage(Number(e.target.value))}
-            className="bg-gray-700 rounded-lg px-2 py-1 text-sm border border-gray-600"
-          >
-            <option value={0.5}>0.5%</option>
-            <option value={1}>1%</option>
-            <option value={2}>2%</option>
-            <option value={3}>3%</option>
-          </select>
-        </div>
       </div>
 
       {/* From Input */}
@@ -348,22 +277,6 @@ export function SwapInterface({ swapXContract, tokenContract, account }) {
       >
         {!fromAmount ? 'Enter an amount' : `Swap ${fromToken} for ${toToken}`}
       </Button>
-
-      {/* Price Info */}
-      {fromAmount && toAmount && parseFloat(fromAmount) > 0 && parseFloat(toAmount) > 0 && (
-        <div className="mt-4 p-3 bg-gray-700 rounded-lg text-sm border border-gray-600">
-          <div className="flex justify-between">
-            <span className="text-gray-400">Price:</span>
-            <span>
-              1 {fromToken} = {(parseFloat(toAmount) / parseFloat(fromAmount)).toFixed(6)} {toToken}
-            </span>
-          </div>
-          <div className="flex justify-between mt-1">
-            <span className="text-gray-400">Minimum received:</span>
-            <span>{(parseFloat(toAmount) * (1 - slippage / 100)).toFixed(6)} {toToken}</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
